@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>cURL → RestAssured Generator 🚀</title>
+</head>
+<body style="font-family: Arial; padding: 20px;">
+
+<h2>Paste your cURL</h2>
+
+<textarea id="curl" rows="10" cols="100"
+          placeholder="Paste your curl here..."></textarea>
+
+<br><br>
+
+<button onclick="generate()">Generate</button>
+
+<h3>Service</h3>
+<pre id="service"></pre>
+
+<h3>DTO</h3>
+<pre id="dto"></pre>
+
+<script>
+    async function generate() {
+        const curl = document.getElementById("curl").value;
+
+        const res = await fetch("/generate", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ curl })
+        });
+
+        const data = await res.json();
+
+        document.getElementById("service").innerText = data.service;
+        document.getElementById("dto").innerText = data.dto;
+    }
+</script>
+
+</body>
+</html>

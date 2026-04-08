@@ -29,7 +29,7 @@ public class CurlGeneratorApp {
         System.out.println("Body: " + request.getBody());
 
         // 2. naming
-        String resource = NamingEngine.extractResourceName(request.getUrl());
+        String resource = NamingEngine.cleanResourceName(request.getUrl());
         String serviceName = NamingEngine.generateServiceName(resource);
         String methodName = NamingEngine.generateMethodName(request.getMethod(), resource);
 

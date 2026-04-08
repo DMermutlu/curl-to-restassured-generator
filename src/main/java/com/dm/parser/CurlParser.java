@@ -1,53 +1,90 @@
 package com.dm.parser;
 
 import com.dm.model.ParsedRequest;
-
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class CurlParser {
 
     public static ParsedRequest parse(String curl) {
+        // 1. Kritik Temizlik: Windows ^ işaretlerini, satır sonlarını ve tırnakları temizle
+        String cleanCurl = curl.replace("^", " ")
+                .replace("\\n", " ")
+                .replace("\n", " ")
+                .replace("\r", " ")
+                .replaceAll("\\s+", " ");
 
-        String method = "GET";
-        String url = "";
-        Map<String, String> headers = new HashMap<>();
-        String body = null;
+        ParsedRequest request = new ParsedRequest();
 
         // METHOD
-        Pattern methodPattern = Pattern.compile("-X\\s+(\\w+)");
-        Matcher methodMatcher = methodPattern.matcher(curl);
-        if (methodMatcher.find()) {
-            method = methodMatcher.group(1);
+        if (cleanCurl.contains("-X")) {
+            String method = cleanCurl.split("-X")[1].trim().split(" ")[0];
+            request.setMethod(method.replace("'", "").replace("\"", ""));
+        } else {
+            request.setMethod("GET");
         }
 
-        // URL
-        Pattern urlPattern = Pattern.compile("(https?://[^\\s']+)");
-        Matcher urlMatcher = urlPattern.matcher(curl);
-        if (urlMatcher.find()) {
-            url = urlMatcher.group(1);
-        }
+        // URL (Tırnaklardan arındırılmış)
+        request.setUrl(extractUrl(cleanCurl));
 
         // HEADERS
-        Pattern headerPattern = Pattern.compile("-H\\s+'([^']+)'");
-        Matcher headerMatcher = headerPattern.matcher(curl);
-        while (headerMatcher.find()) {
-            String header = headerMatcher.group(1);
-            String[] parts = header.split(":", 2);
-            if (parts.length == 2) {
-                headers.put(parts[0].trim(), parts[1].trim());
-            }
-        }
+        request.setHeaders(extractHeaders(cleanCurl));
 
         // BODY
-        Pattern bodyPattern = Pattern.compile("-d\\s+'([^']+)'");
-        Matcher bodyMatcher = bodyPattern.matcher(curl);
-        if (bodyMatcher.find()) {
-            body = bodyMatcher.group(1);
-        }
+        request.setBody(extractBody(curl)); // Body için orijinal curl'ü gönderiyoruz (içerik bozulmasın diye)
 
-        return new ParsedRequest(method, url, headers, body);
+        return request;
+    }
+
+    private static String extractUrl(String cleanCurl) {
+        String[] parts = cleanCurl.split(" ");
+        for (String part : parts) {
+            String p = part.replace("'", "").replace("\"", "");
+            if (p.startsWith("http")) {
+                return p;
+            }
+        }
+        return "";
+    }
+
+    private static Map<String, String> extractHeaders(String cleanCurl) {
+        Map<String, String> headers = new HashMap<>();
+        String[] parts = cleanCurl.split("-H ");
+
+        for (int i = 1; i < parts.length; i++) {
+            String headerPart = parts[i].split(" -")[0].trim();
+            headerPart = headerPart.replace("'", "").replace("\"", "");
+
+            if (headerPart.contains(":")) {
+                String[] kv = headerPart.split(":", 2);
+                headers.put(kv[0].trim(), kv[1].trim());
+            }
+        }
+        return headers;
+    }
+
+    private static String extractBody(String curl) {
+        // Tüm olası data bayraklarını kontrol et
+        String[] dataMarkers = {"--data-raw", "--data-binary", "--data", "-d"};
+
+        for (String marker : dataMarkers) {
+            int index = curl.indexOf(marker);
+            if (index != -1) {
+                // Bayraktan sonrasını al ve temizle
+                String bodyPart = curl.substring(index + marker.length()).trim();
+
+                // Eğer body tırnakla başlıyorsa (' veya "), dış tırnakları ayıkla
+                if (bodyPart.startsWith("'") || bodyPart.startsWith("\"")) {
+                    char quoteChar = bodyPart.charAt(0);
+                    int lastQuoteIndex = bodyPart.lastIndexOf(quoteChar);
+                    if (lastQuoteIndex > 0) {
+                        return bodyPart.substring(1, lastQuoteIndex).trim();
+                    }
+                    return bodyPart.substring(1).trim();
+                }
+                return bodyPart;
+            }
+        }
+        return null;
     }
 }
